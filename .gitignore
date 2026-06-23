@@ -1,5 +1,5 @@
 .env
-config/credentials/
+src/config/credentials/
 state/
 __pycache__/
 *.pyc

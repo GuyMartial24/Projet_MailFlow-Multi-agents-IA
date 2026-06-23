@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 
 # ── Microsoft Graph API ─────────────────────────────────────
@@ -12,7 +12,7 @@ MS_CLIENT_SECRET = os.getenv("MS_CLIENT_SECRET", "")
 MS_USER_EMAIL    = os.getenv("MS_USER_EMAIL", "")
 
 # ── Google APIs ─────────────────────────────────────────────
-GOOGLE_SERVICE_ACCOUNT_JSON    = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "config/credentials/google_service_account.json")
+GOOGLE_SERVICE_ACCOUNT_JSON    = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "src/config/credentials/google_service_account.json")
 GOOGLE_SHEET_ID                = os.getenv("GOOGLE_SHEET_ID", "")
 GOOGLE_SHEET_TAB               = os.getenv("GOOGLE_SHEET_TAB", "Liste_envois_MEMENTO")
 GOOGLE_DOC_CONTENU_MESSAGE_ID  = os.getenv("GOOGLE_DOC_CONTENU_MESSAGE_ID", "")

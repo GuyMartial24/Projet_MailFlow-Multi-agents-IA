@@ -83,7 +83,7 @@ Les credentials Microsoft Graph API et les IDs Google sont déjà documentés da
 
 Déposer le fichier `google_service_account.json` dans :
 ```
-config/credentials/google_service_account.json
+src/config/credentials/google_service_account.json
 ```
 
 Partager ensuite le Google Sheet et le Google Doc ContenuMessage avec l'email du compte de service (visible dans le JSON, champ `client_email`).
@@ -110,19 +110,23 @@ MailFlow/
 ├── .gitignore
 ├── requirements.txt
 ├── main.py                       # Point d'entrée — boucles de polling
-├── crew.py                       # Définition des deux Crews CrewAI
-├── config/
-│   ├── settings.py               # Lecture centralisée du .env
-│   └── credentials/
-│       └── google_service_account.json  # À déposer ici (non versionné)
-├── tools/
-│   ├── outlook_tool.py           # Fetch emails Outlook (Graph API)
-│   ├── send_mail_tool.py         # Envoi email HTML (Graph API)
-│   ├── sheets_tool.py            # Lecture/écriture Google Sheets
-│   └── drive_tool.py             # Export Google Doc + parsing
-├── agents/
-│   ├── analyseur_mail.py         # Agent 1 : surveillance emails
-│   └── expediteur.py             # Agent 2 : envoi Memento
+├── docs/
+│   ├── logique_projet_MailFlow.md
+│   └── README_REMPLACEMENT_FICHIER_MEMENTO.txt
+├── src/
+│   ├── crew.py                   # Définition des deux Crews CrewAI
+│   ├── agents/
+│   │   ├── analyseur_mail.py     # Agent 1 : surveillance emails
+│   │   └── expediteur.py         # Agent 2 : envoi Memento
+│   ├── tools/
+│   │   ├── outlook_tool.py       # Fetch emails Outlook (Graph API)
+│   │   ├── send_mail_tool.py     # Envoi email HTML (Graph API)
+│   │   ├── sheets_tool.py        # Lecture/écriture Google Sheets
+│   │   └── drive_tool.py         # Export Google Doc + parsing
+│   └── config/
+│       ├── settings.py           # Lecture centralisée du .env
+│       └── credentials/
+│           └── google_service_account.json  # À déposer ici (non versionné)
 └── state/
     └── last_check_outlook.json   # Timestamp incrémental (auto-créé)
 ```

@@ -6,9 +6,14 @@ Lance les deux crews en parallèle (threads séparés) avec leurs propres interv
 - expediteur     : toutes les EXPEDITEUR_INTERVAL secondes (défaut 7 min)
 """
 
+import sys
 import time
 import threading
 import logging
+from pathlib import Path
+
+# Ajoute src/ au chemin Python pour résoudre les imports internes
+sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from config import settings
 from config.settings import validate_config
