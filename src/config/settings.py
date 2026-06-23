@@ -25,9 +25,13 @@ FILTER_SENDER           = os.getenv("FILTER_SENDER", "formulaire@exemple.fr")
 # ── Mots-clés objet email (OR entre eux) ────────────────────
 SUBJECT_KEYWORDS = [
     "demande memento",
+    "demande mémento",
     "demande d'accès au memento",
+    "demande d'accès au mémento",
     "demande accès memento",
+    "demande accès mémento",
     "accès memento",
+    "accès mémento",
 ]
 
 # ── Colonnes Google Sheet (index 0-based) ───────────────────

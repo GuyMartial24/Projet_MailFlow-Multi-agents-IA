@@ -1,11 +1,12 @@
 """
-Outil Microsoft Graph API — lecture boite Outlook de l'utilisateur.
+Outil Microsoft Graph API — lecture boite Outlook.
 
-Responsabilités :
-- Authentification OAuth 2.0 (client credentials flow)
-- Récupération des emails depuis la dernière connexion
-- Filtrage : expéditeur ET mots-clés objet
-- Extraction Prénom/NOM depuis le corps du formulaire ET le champ From
+Structure réelle des emails WordPress reçus :
+  En-tête  → De : Formulaire <formulaire@exemple.fr>  (filtre d'entrée uniquement)
+  Corps    → "De : Jean Dupont jean.dupont@gmail.com"  (source unique d'extraction)
+
+L'email, le prénom et le NOM du vrai demandeur sont extraits
+exclusivement depuis la ligne "De :" dans le corps du message.
 """
 
 import re
@@ -21,13 +22,11 @@ from pydantic import BaseModel, Field
 
 from config import settings
 
-# ── Fichier de persistence du dernier timestamp de lecture ──
 STATE_FILE = Path("state/last_check_outlook.json")
-
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
 
-# ── Auth ────────────────────────────────────────────────────
+# ── Auth ─────────────────────────────────────────────────────
 
 def _get_access_token() -> str:
     app = msal.ConfidentialClientApplication(
@@ -43,10 +42,9 @@ def _get_access_token() -> str:
     return result["access_token"]
 
 
-# ── Persistence timestamp ────────────────────────────────────
+# ── Persistence timestamp ─────────────────────────────────────
 
 def _load_last_check() -> Optional[str]:
-    """Retourne le timestamp ISO 8601 de la dernière vérification, ou None."""
     if STATE_FILE.exists():
         data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
         return data.get("last_check")
@@ -61,71 +59,44 @@ def _save_last_check(ts: str) -> None:
     )
 
 
-# ── Extraction nom/prénom ────────────────────────────────────
+# ── Extraction depuis le corps du formulaire WordPress ────────
 
-def _extract_from_body(body: str) -> tuple[str, str]:
+def _extract_from_wordpress_body(body: str) -> tuple[str, str, str]:
     """
-    Tente d'extraire Prénom et NOM depuis le corps d'un formulaire WordPress.
-    Retourne ("", "") si non trouvé.
+    Extrait email, prénom et NOM depuis la ligne "De :" du corps WordPress.
+
+    Format attendu dans le corps :
+        De : Jean Dupont jean.dupont@gmail.com
+
+    Retourne (email, prenom, nom) ou ("", "", "") si non trouvé.
     """
-    prenom = ""
-    nom = ""
+    # Regex : "De :" suivi du nom complet puis de l'email
+    pattern = re.compile(
+        r"De\s*:\s*(.+?)\s+([\w.+\-]+@[\w.\-]+\.[a-zA-Z]{2,})",
+        re.IGNORECASE,
+    )
+    m = pattern.search(body)
+    if not m:
+        return "", "", ""
 
-    patterns_prenom = [
-        r"[Pp]r[eé]nom\s*[:\-]\s*([^\n\r<]+)",
-        r"[Ff]irst\s*[Nn]ame\s*[:\-]\s*([^\n\r<]+)",
-    ]
-    patterns_nom = [
-        r"(?<![Pp]r[eé])(?:^|[\s\n])(?:NOM|[Nn]om)\s*[:\-]\s*([^\n\r<]+)",
-        r"[Ll]ast\s*[Nn]ame\s*[:\-]\s*([^\n\r<]+)",
-    ]
+    full_name = m.group(1).strip()
+    email     = m.group(2).strip()
 
-    for p in patterns_prenom:
-        m = re.search(p, body)
-        if m:
-            prenom = m.group(1).strip()
-            break
+    parts  = full_name.split()
+    prenom = parts[0] if parts else ""
+    nom    = " ".join(parts[1:]) if len(parts) > 1 else ""
 
-    for p in patterns_nom:
-        m = re.search(p, body)
-        if m:
-            nom = m.group(1).strip()
-            break
-
-    return prenom, nom
+    return email, prenom, nom
 
 
-def _extract_from_address(display_name: str) -> tuple[str, str]:
-    """
-    Tente de décomposer 'Prénom NOM' depuis le display name de l'expéditeur.
-    Retourne ("", "") si impossible.
-    """
-    parts = display_name.strip().split()
-    if len(parts) == 2:
-        return parts[0], parts[1]
-    if len(parts) > 2:
-        return parts[0], " ".join(parts[1:])
-    return display_name, ""
-
-
-def _pick_most_complete(
-    body_prenom: str, body_nom: str,
-    from_prenom: str, from_nom: str,
-) -> tuple[str, str]:
-    """Conserve la version la plus complète pour chaque champ."""
-    prenom = body_prenom if len(body_prenom) >= len(from_prenom) else from_prenom
-    nom    = body_nom    if len(body_nom)    >= len(from_nom)    else from_nom
-    return prenom, nom
-
-
-# ── Filtre objet ─────────────────────────────────────────────
+# ── Filtre objet ──────────────────────────────────────────────
 
 def _subject_matches(subject: str) -> bool:
     s = subject.lower()
     return any(kw in s for kw in settings.SUBJECT_KEYWORDS)
 
 
-# ── Tool CrewAI ──────────────────────────────────────────────
+# ── Tool CrewAI ───────────────────────────────────────────────
 
 class OutlookFetchInput(BaseModel):
     dummy: str = Field(default="", description="Pas de paramètre requis.")
@@ -134,21 +105,25 @@ class OutlookFetchInput(BaseModel):
 class OutlookFetchTool(BaseTool):
     name: str = "outlook_fetch_new_emails"
     description: str = (
-        "Récupère les nouveaux emails entrants dans la boite Outlook de l'utilisateur "
-        "depuis la dernière exécution. Filtre sur l'expéditeur formulaire@exemple.fr "
-        "ET des mots-clés dans l'objet liés aux demandes de memento. "
+        "Récupère les nouveaux emails de formulaire@exemple.fr dans la boite Outlook "
+        "depuis la dernière exécution, filtrés par mots-clés dans l'objet. "
+        "Extrait l'email, le prénom et le NOM du vrai demandeur depuis la ligne "
+        "'De :' dans le corps du formulaire WordPress. "
         "Retourne une liste de dicts {email, prenom, nom, received_at}."
     )
     args_schema: type[BaseModel] = OutlookFetchInput
 
     def _run(self, dummy: str = "") -> list[dict]:
         token = _get_access_token()
-        headers = {"Authorization": f"Bearer {token}"}
+        headers = {
+            "Authorization": f"Bearer {token}",
+            # Demande le corps en texte brut pour simplifier le parsing
+            "Prefer": 'outlook.body-content-type="text"',
+        }
 
         last_check = _load_last_check()
         now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # Filtre OData : expéditeur ET date > dernière vérification
         filter_parts = [
             f"from/emailAddress/address eq '{settings.FILTER_SENDER}'"
         ]
@@ -160,7 +135,7 @@ class OutlookFetchTool(BaseTool):
         url = (
             f"{GRAPH_BASE}/users/{settings.MS_USER_EMAIL}/messages"
             f"?$filter={odata_filter}"
-            f"&$select=subject,from,body,receivedDateTime"
+            f"&$select=subject,body,receivedDateTime"
             f"&$top=50"
             f"&$orderby=receivedDateTime asc"
         )
@@ -175,16 +150,14 @@ class OutlookFetchTool(BaseTool):
             if not _subject_matches(subject):
                 continue
 
-            sender_email   = msg["from"]["emailAddress"]["address"]
-            sender_display = msg["from"]["emailAddress"].get("name", "")
-            body_content   = msg.get("body", {}).get("content", "")
+            body_content = msg.get("body", {}).get("content", "")
+            email, prenom, nom = _extract_from_wordpress_body(body_content)
 
-            body_prenom, body_nom   = _extract_from_body(body_content)
-            from_prenom, from_nom   = _extract_from_address(sender_display)
-            prenom, nom = _pick_most_complete(body_prenom, body_nom, from_prenom, from_nom)
+            if not email:
+                continue  # corps non parsable, on ignore
 
             results.append({
-                "email":       sender_email,
+                "email":       email,
                 "prenom":      prenom,
                 "nom":         nom,
                 "received_at": msg.get("receivedDateTime", ""),
