@@ -21,8 +21,8 @@ avant chaque envoi.
 La solution devait répondre à deux contraintes fortes :
 
 - **Confidentialité** : les données des demandeurs (nom, email) ne transitent par aucun
-  service cloud tiers. Tout s'exécute en local sur la machine de l'opérateur, y compris
-  les agents IA. Aucune donnée n'est envoyée à une API d'inférence externe.
+  service cloud tiers. La solution est hébergée sur un **VPS privé sous Linux (Oracle)**,
+  y compris les agents IA. Aucune donnée n'est envoyée à une API d'inférence externe.
 
 - **Technologie & granularité** : le système est construit avec **CrewAI**, framework Python de
   multi-agents IA. Contrairement aux solutions No-code / Low-code (Make, Zapier, n8n…),

@@ -4,10 +4,14 @@
 
 L'organisation utilise un formulaire WordPress pour recueillir les demandes d'accès au Memento.
 Chaque soumission de formulaire génère un email automatique envoyé depuis `formulaire@exemple.fr`
-vers la boite professionnelle de l'utilisateur (`utilisateur@exemple.fr`).
+vers la boite professionnelle de l'utilisateur.
 
 Le système MailFlow automatise la chaîne de traitement : détection de la demande →
 enregistrement → approbation manuelle → envoi du lien Memento → confirmation.
+
+La solution est hébergée sur un **VPS privé sous Linux (Oracle)**, ce qui garantit que
+les données des demandeurs (nom, email) ne transitent par aucun service cloud tiers
+et qu'aucune information n'est envoyée à une API d'inférence externe.
 
 ---
 
