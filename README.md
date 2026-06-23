@@ -1,5 +1,36 @@
 # MailFlow — Système Multi-Agents IA
 
+> **Auteur :** Martial GADJEU | Data Engineer & AI
+
+---
+
+## Contexte
+
+L'organisation reçoit régulièrement des demandes d'accès au Memento via un formulaire WordPress.
+Le traitement de ces demandes était entièrement manuel : consultation des emails, copie des
+coordonnées, envoi individuel du document, mise à jour du suivi.
+Ce processus représentait une perte de **30 à 45 minutes par semaine**.
+
+Ce projet automatise l'intégralité de cette chaîne tout en conservant une validation humaine
+avant chaque envoi.
+
+---
+
+## Problématique
+
+La solution devait répondre à deux contraintes fortes :
+
+- **Confidentialité** : les données des demandeurs (nom, email) ne transitent par aucun
+  service cloud tiers. Tout s'exécute en local sur la machine de l'opérateur, y compris
+  les agents IA. Aucune donnée n'est envoyée à une API d'inférence externe.
+
+- **Technologie** : le système est construit avec **CrewAI**, framework Python de
+  multi-agents IA, qui orchestre les deux agents de manière autonome et parallèle.
+
+---
+
+## Solution
+
 Système automatisé basé sur **CrewAI** pour traiter les demandes d'accès au Memento.
 
 Deux agents IA tournent en parallèle :
@@ -98,7 +129,7 @@ MailFlow/
 
 ---
 
-## Fonctionnement rapide
+## Fonctionnement
 
 | Étape | Agent | Action |
 |-------|-------|--------|
@@ -107,5 +138,3 @@ MailFlow/
 | 3 | Humain | Remplit la colonne **Approuver envoi ?** avec `OUI` dans le Google Sheet |
 | 4 | `expediteur` | Détecte les lignes `OUI` + `En attente`, envoie l'email HTML avec lien Memento |
 | 5 | `expediteur` | Met à jour le Statut → **Envoyé** |
-
-Pour la logique détaillée, voir [logique_projet_MailFlow.md](logique_projet_MailFlow.md).
