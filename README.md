@@ -27,10 +27,10 @@ La solution devait répondre à deux contraintes fortes :
 - **Technologie & granularité** : le système est construit avec **CrewAI**, framework Python de
   multi-agents IA. Contrairement aux solutions No-code / Low-code (Make, Zapier, n8n…),
   une implémentation en code pur offre un niveau de granularité bien supérieur :
-  contrôle fin des filtres email (logique AND/OR), logique d'extraction intelligente
-  du nom/prénom (comparaison multi-sources), gestion incrémentale des emails déjà traités,
-  parsing ciblé d'un Google Doc, envoi HTML avec lien cliquable, et mise à jour atomique
-  du statut ligne par ligne. Chaque comportement est explicitement maîtrisé,
+  contrôle fin des filtres email (logique AND/OR), extraction ciblée du demandeur
+  dans le corps du formulaire WordPress, fetch incrémental sans doublon,
+  parsing ciblé d'un Google Doc natif, envoi HTML avec lien cliquable, et mise à jour
+  atomique du statut ligne par ligne. Chaque comportement est explicitement maîtrisé,
   sans dépendre des limites ou des boîtes noires d'un outil visuel.
 
 ---
@@ -38,10 +38,34 @@ La solution devait répondre à deux contraintes fortes :
 ## Solution
 
 Système automatisé basé sur **CrewAI** pour traiter les demandes d'accès au Memento.
+Deux agents IA tournent en parallèle et en continu sur le VPS.
 
-Deux agents IA tournent en parallèle :
-- **`analyseur_mail`** : surveille la boite Outlook de l'utilisateur et enregistre les demandes dans Google Sheets
-- **`expediteur`** : envoie automatiquement le lien du Memento aux demandes approuvées
+### Agent `analyseur_mail` — Surveillance de la boite mail
+
+Cet agent interroge la boite Outlook de l'utilisateur **toutes les 5 minutes** via
+Microsoft Graph API. À chaque cycle, il récupère uniquement les emails reçus **depuis
+sa dernière exécution** grâce à un timestamp horodaté sauvegardé localement
+(`state/last_check_outlook.json`). Ce mécanisme de **fetch incrémental** garantit
+qu'aucun email n'est traité deux fois.
+
+Chaque email est filtré :
+- expéditeur `formulaire@exemple.fr` (notifications WordPress)
+- objet contenant une variante de "Demande Mémento"
+
+Pour chaque demande détectée, l'agent extrait l'email, le prénom et le NOM du demandeur
+depuis la ligne `De :` dans le corps du formulaire, puis insère une nouvelle ligne dans
+le Google Sheet avec le statut `En attente`.
+
+### Agent `expediteur` — Surveillance du Google Sheet
+
+Cet agent lit le Google Sheet **toutes les 7 minutes**. À chaque cycle, il parcourt
+toutes les lignes et cible exclusivement celles qui réunissent deux conditions :
+- colonne **Approuver envoi ?** = `OUI` (validé manuellement)
+- colonne **Statut** = `En attente`
+
+Pour chaque ligne éligible, il récupère le contenu du message depuis le Google Doc
+ContenuMessage, envoie l'email HTML avec le lien de téléchargement cliquable,
+puis met à jour le statut de la ligne à `Envoyé` — empêchant tout double envoi.
 
 ---
 
