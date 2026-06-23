@@ -29,8 +29,8 @@ La solution devait répondre à deux contraintes fortes :
   une implémentation en code pur offre un niveau de granularité bien supérieur :
   contrôle fin des filtres email (logique AND/OR), extraction ciblée du demandeur
   dans le corps du formulaire WordPress, fetch incrémental sans doublon,
-  parsing ciblé d'un Google Doc natif, envoi HTML avec lien cliquable, et mise à jour
-  atomique du statut ligne par ligne. Chaque comportement est explicitement maîtrisé,
+  parsing ciblé d'un Google Doc natif, envoi d'un email avec lien de téléchargement
+  du Memento, et mise à jour atomique du statut ligne par ligne. Chaque comportement est explicitement maîtrisé,
   sans dépendre des limites ou des boîtes noires d'un outil visuel.
 
 ---
@@ -64,7 +64,7 @@ toutes les lignes et cible exclusivement celles qui réunissent deux conditions 
 - colonne **Statut** = `En attente`
 
 Pour chaque ligne éligible, il récupère le contenu du message depuis le Google Doc
-ContenuMessage, envoie l'email HTML avec le lien de téléchargement cliquable,
+ContenuMessage, envoie un email avec le lien de téléchargement du Memento,
 puis met à jour le statut de la ligne à `Envoyé` — empêchant tout double envoi.
 
 ---
@@ -147,7 +147,7 @@ MailFlow/
 │   ├── crew.py                   # Définition des deux Crews CrewAI
 │   ├── agents/
 │   │   ├── analyseur_mail.py     # Agent 1 : surveillance emails
-│   │   └── expediteur.py         # Agent 2 : envoi Memento
+│   │   └── expediteur.py         # Agent 2 : envoi email lien téléchargement Memento
 │   ├── tools/
 │   │   ├── outlook_tool.py       # Fetch emails Outlook (Graph API)
 │   │   ├── send_mail_tool.py     # Envoi email HTML (Graph API)
@@ -170,5 +170,5 @@ MailFlow/
 | 1 | `analyseur_mail` | Détecte les emails de `formulaire@exemple.fr` avec objet "demande memento" |
 | 2 | `analyseur_mail` | Enregistre Email, Nom, Prénom, Date dans Google Sheets (Statut = *En attente*) |
 | 3 | Humain | Remplit la colonne **Approuver envoi ?** avec `OUI` dans le Google Sheet |
-| 4 | `expediteur` | Détecte les lignes `OUI` + `En attente`, envoie l'email HTML avec lien Memento |
+| 4 | `expediteur` | Détecte les lignes `OUI` + `En attente`, envoie l'email avec le lien de téléchargement du Memento |
 | 5 | `expediteur` | Met à jour le Statut → **Envoyé** |
