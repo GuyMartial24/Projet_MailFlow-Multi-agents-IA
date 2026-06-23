@@ -9,7 +9,7 @@
 L'organisation reçoit régulièrement des demandes d'accès au Memento via un formulaire WordPress.
 Le traitement de ces demandes était entièrement manuel : consultation des emails, copie des
 coordonnées, envoi individuel du document, mise à jour du suivi.
-Ce processus représentait une perte de **30 à 45 minutes par semaine**.
+Ce processus représentait une perte de **30 min à 1h par semaine**.
 
 Ce projet automatise l'intégralité de cette chaîne tout en conservant une validation humaine
 avant chaque envoi.
@@ -45,7 +45,7 @@ Deux agents IA tournent en parallèle :
 - Un compte Azure avec une application enregistrée (Microsoft Graph API)
 - Un compte de service Google (Google Cloud Console)
 - Accès au Google Sheet et au Google Doc ContenuMessage
-- La boite Outlook `utilisateur@exemple.fr`
+- Une boite Outlook avec accès Microsoft Graph API configuré
 
 ---
 
