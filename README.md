@@ -24,8 +24,14 @@ La solution devait répondre à deux contraintes fortes :
   service cloud tiers. Tout s'exécute en local sur la machine de l'opérateur, y compris
   les agents IA. Aucune donnée n'est envoyée à une API d'inférence externe.
 
-- **Technologie** : le système est construit avec **CrewAI**, framework Python de
-  multi-agents IA, qui orchestre les deux agents de manière autonome et parallèle.
+- **Technologie & granularité** : le système est construit avec **CrewAI**, framework Python de
+  multi-agents IA. Contrairement aux solutions No-code / Low-code (Make, Zapier, n8n…),
+  une implémentation en code pur offre un niveau de granularité bien supérieur :
+  contrôle fin des filtres email (logique AND/OR), logique d'extraction intelligente
+  du nom/prénom (comparaison multi-sources), gestion incrémentale des emails déjà traités,
+  parsing ciblé d'un Google Doc, envoi HTML avec lien cliquable, et mise à jour atomique
+  du statut ligne par ligne. Chaque comportement est explicitement maîtrisé,
+  sans dépendre des limites ou des boîtes noires d'un outil visuel.
 
 ---
 
