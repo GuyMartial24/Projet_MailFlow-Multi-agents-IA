@@ -52,8 +52,12 @@ class SheetAppendTool(BaseTool):
         service = _get_sheets_service()
         now = datetime.now().strftime("%d/%m/%Y %H:%M")
 
+        # Normalisation : Prénom en title case, NOM tout en majuscules
+        prenom_fmt = prenom.title()
+        nom_fmt    = nom.upper()
+
         # Ordre réel : A=Email | B=Nom | C=Prenom | D=Approuver envoi? | E=Statut | F=Date enregistrement
-        row = [email, nom, prenom, "", settings.STATUT_EN_ATTENTE, now]
+        row = [email, nom_fmt, prenom_fmt, "", settings.STATUT_EN_ATTENTE, now]
 
         service.spreadsheets().values().append(
             spreadsheetId=settings.GOOGLE_SHEET_ID,
@@ -63,7 +67,7 @@ class SheetAppendTool(BaseTool):
             body={"values": [row]},
         ).execute()
 
-        return f"Ligne ajoutée : {prenom} {nom} <{email}> — {now}"
+        return f"Ligne ajoutée : {prenom_fmt} {nom_fmt} <{email}> — {now}"
 
 
 # ── Tool : lecture des lignes à traiter ──────────────────────
