@@ -1,0 +1,17 @@
+crewai>=0.80.0
+python-dotenv>=1.0.0
+
+# Microsoft Graph API
+msal>=1.29.0
+requests>=2.32.0
+
+# Google APIs
+google-auth>=2.29.0
+google-auth-oauthlib>=1.2.0
+google-api-python-client>=2.131.0
+
+# Parsing HTML (export Google Doc)
+beautifulsoup4>=4.12.0
+
+# Utilitaires
+pytz>=2024.1
