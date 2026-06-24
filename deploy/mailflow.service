@@ -1,34 +1,21 @@
-[Unit]
-Description=MailFlow — Agents IA surveillance Outlook et envoi Memento
+﻿[Unit]
+Description=MailFlow â€” Agents IA surveillance Outlook et envoi Memento
 Documentation=https://github.com/GuyMartial24/Projet_MailFlow-Multi-agents-IA
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-# ── Identité du processus ────────────────────────────────────────────────────
 User=ubuntu
 Group=ubuntu
-
-# ── Répertoire et commande de lancement ──────────────────────────────────────
-WorkingDirectory=/home/ubuntu/MailFlow
-ExecStart=/home/ubuntu/MailFlow/.venv/bin/python main.py
-
-# ── Redémarrage automatique ──────────────────────────────────────────────────
-# Redémarre le service si le processus se termine avec une erreur
+WorkingDirectory=/home/ubuntu/Projets_en_Production/MailFlow
+ExecStart=/home/ubuntu/Projets_en_Production/MailFlow/.venv/bin/python main.py
 Restart=on-failure
 RestartSec=10s
-
-# ── Logs ─────────────────────────────────────────────────────────────────────
-# Les logs sont consultables via : journalctl -u mailflow -f
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=mailflow
-
-# ── Environnement ────────────────────────────────────────────────────────────
-# S'assure que Python utilise l'UTF-8 pour les logs en français
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONIOENCODING=utf-8
 
 [Install]
-# Démarre automatiquement au boot en mode multi-utilisateur
 WantedBy=multi-user.target
