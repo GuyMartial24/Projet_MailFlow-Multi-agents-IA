@@ -12,6 +12,7 @@ Flux :
 
 from crewai import Agent, Task
 
+from config.llm import get_llm
 from tools.outlook_tool import OutlookFetchTool
 from tools.sheets_tool import SheetAppendTool
 
@@ -44,6 +45,7 @@ def build_analyseur_mail_agent() -> Agent:
             "vrai demandeur. Tu extrais ces informations avec précision."
         ),
         tools=[OutlookFetchTool(), SheetAppendTool()],
+        llm=get_llm(),
         verbose=True,
         allow_delegation=False,
     )

@@ -40,6 +40,13 @@ GOOGLE_DOC_CONTENU_MESSAGE_ID = os.getenv("GOOGLE_DOC_CONTENU_MESSAGE_ID", "")
 
 
 # ---------------------------------------------------------------------------
+# LLM local — Ollama sur VPS
+# ---------------------------------------------------------------------------
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434")
+LLM_MODEL = os.getenv("LLM_MODEL", "ollama/llama3.1")
+
+
+# ---------------------------------------------------------------------------
 # Paramètres des agents (intervalles de polling)
 # ---------------------------------------------------------------------------
 ANALYSEUR_MAIL_INTERVAL = int(os.getenv("ANALYSEUR_MAIL_INTERVAL", 300))  # 5 min

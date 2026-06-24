@@ -12,6 +12,7 @@ Flux :
 
 from crewai import Agent, Task
 
+from config.llm import get_llm
 from tools.drive_tool import DriveReadMessageTool
 from tools.send_mail_tool import SendMailTool
 from tools.sheets_tool import SheetReadPendingTool, SheetUpdateStatusTool
@@ -51,6 +52,7 @@ def build_expediteur_agent() -> Agent:
             SendMailTool(),
             SheetUpdateStatusTool(),
         ],
+        llm=get_llm(),
         verbose=True,
         allow_delegation=False,
     )
