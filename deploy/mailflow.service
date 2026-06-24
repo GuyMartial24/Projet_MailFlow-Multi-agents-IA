@@ -10,9 +10,8 @@ User=ubuntu
 Group=ubuntu
 
 # ── Répertoire et commande de lancement ──────────────────────────────────────
-# Remplacer /chemin/vers par le chemin absolu réel sur le VPS
-WorkingDirectory=/chemin/vers/MailFlow
-ExecStart=/chemin/vers/MailFlow/.venv/bin/python main.py
+WorkingDirectory=/home/ubuntu/MailFlow
+ExecStart=/home/ubuntu/MailFlow/.venv/bin/python main.py
 
 # ── Redémarrage automatique ──────────────────────────────────────────────────
 # Redémarre le service si le processus se termine avec une erreur
