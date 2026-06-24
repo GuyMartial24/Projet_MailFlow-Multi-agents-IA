@@ -6,9 +6,8 @@ Wants=network-online.target
 
 [Service]
 # ── Identité du processus ────────────────────────────────────────────────────
-# Remplacer 'votre_user' par l'utilisateur Linux qui possède le projet
-User=votre_user
-Group=votre_user
+User=ubuntu
+Group=ubuntu
 
 # ── Répertoire et commande de lancement ──────────────────────────────────────
 # Remplacer /chemin/vers par le chemin absolu réel sur le VPS
