@@ -1,13 +1,24 @@
 """
 Agent expediteur.
 
-Rôle : surveiller le Google Sheet toutes les 7 minutes, identifier les demandes
-approuvées (Approuver envoi = OUI et Statut = En attente), envoyer l'email avec
-le lien de téléchargement du Memento, puis mettre à jour le statut à 'Envoyé'.
+Rôle : surveiller le Google Sheet toutes les 7 minutes et traiter deux types
+d'envois :
 
-Flux :
-    Google Sheet → filtre OUI + En attente → lecture ContenuMessage (Google Doc)
-    → envoi email HTML (Graph API) → mise à jour statut
+  Type 'premier_envoi' — Approuver=OUI + Statut='En attente' :
+      → Envoi email avec lien de téléchargement du Memento
+      → Statut → 'Envoyé'
+      → Q (Nb envois) + 1
+
+  Type 'renvoi' — Approuver=OUI + Statut='Envoyé' + O='Oui' :
+      → Renvoi email (l'opérateur a approuvé manuellement via colonne O)
+      → O remis à vide (évite boucle infinie)
+      → Q (Nb envois) + 1
+      → Statut reste 'Envoyé'
+
+Flux global :
+    SheetReadPendingTool → DriveReadMessageTool → SendMailTool →
+    SheetUpdateStatusTool (premier_envoi) | SheetClearRedondanceTool (renvoi) →
+    SheetIncrementEnvoisTool (tous les cas)
 """
 
 from crewai import Agent, Task
@@ -15,18 +26,25 @@ from crewai import Agent, Task
 from config.llm import get_llm
 from tools.drive_tool import DriveReadMessageTool
 from tools.send_mail_tool import SendMailTool
-from tools.sheets_tool import SheetReadPendingTool, SheetUpdateStatusTool
+from tools.sheets_tool import (
+    SheetClearRedondanceTool,
+    SheetIncrementEnvoisTool,
+    SheetReadPendingTool,
+    SheetUpdateStatusTool,
+)
 
 
 def build_expediteur_agent() -> Agent:
     """
     Instancie l'agent CrewAI chargé de l'envoi des emails Memento.
 
-    L'agent utilise quatre outils :
-      - SheetReadPendingTool  : lit les lignes approuvées du Google Sheet
-      - DriveReadMessageTool  : exporte le Google Doc ContenuMessage en HTML
-      - SendMailTool          : envoie l'email via Microsoft Graph API
-      - SheetUpdateStatusTool : met à jour le statut de la ligne à 'Envoyé'
+    Outils disponibles :
+      - SheetReadPendingTool     : lit les lignes éligibles (2 types)
+      - DriveReadMessageTool     : exporte le Google Doc ContenuMessage en HTML
+      - SendMailTool             : envoie l'email via Microsoft Graph API
+      - SheetUpdateStatusTool    : passe Statut → 'Envoyé' (premier envoi)
+      - SheetClearRedondanceTool : vide O après un renvoi (évite boucle)
+      - SheetIncrementEnvoisTool : incrémente Q après chaque envoi
 
     Returns:
         Agent: instance configurée et prête à recevoir une tâche.
@@ -34,23 +52,26 @@ def build_expediteur_agent() -> Agent:
     return Agent(
         role="Expéditeur Email",
         goal=(
-            "Consulter le Google Sheet et envoyer automatiquement l'email avec "
-            "le lien de téléchargement du Memento à toutes les personnes dont la "
-            "colonne 'Approuver envoi' est 'OUI' et le 'Statut' est 'En attente'. "
-            "Après chaque envoi réussi, mettre à jour le statut de la ligne à 'Envoyé'."
+            "Consulter le Google Sheet, envoyer l'email avec le lien de "
+            "téléchargement du Memento pour chaque demande approuvée, "
+            "gérer les premiers envois et les renvois approuvés, "
+            "et maintenir le compteur d'envois à jour."
         ),
         backstory=(
-            "Tu es un assistant d'envoi de documents. Tu traites les demandes "
-            "validées et tu envoies le lien de téléchargement du Memento aux bonnes "
-            "personnes, sans jamais envoyer deux fois à la même personne. "
-            "Tu utilises toujours le contenu officiel du fichier ContenuMessage "
-            "pour rédiger les emails, en préservant le lien cliquable de téléchargement."
+            "Tu es un assistant d'envoi de documents. Tu traites deux types "
+            "de demandes : les premières demandes (Statut=En attente) et les "
+            "renvois approuvés par l'opérateur (Statut=Envoyé + O=Oui). "
+            "Tu ne renvoies jamais deux fois sans autorisation explicite. "
+            "Après chaque envoi tu mets à jour le compteur et tu nettoies "
+            "les flags pour éviter tout traitement en boucle."
         ),
         tools=[
             SheetReadPendingTool(),
             DriveReadMessageTool(),
             SendMailTool(),
             SheetUpdateStatusTool(),
+            SheetClearRedondanceTool(),
+            SheetIncrementEnvoisTool(),
         ],
         llm=get_llm(),
         verbose=True,
@@ -60,10 +81,7 @@ def build_expediteur_agent() -> Agent:
 
 def build_expediteur_task(agent: Agent) -> Task:
     """
-    Construit la tâche assignée à l'agent expediteur.
-
-    La tâche décrit le comportement attendu lors de chaque cycle de polling
-    du Google Sheet.
+    Construit la tâche de l'agent expediteur avec la logique d'envoi à deux niveaux.
 
     Args:
         agent: instance de l'agent à qui assigner la tâche.
@@ -73,24 +91,30 @@ def build_expediteur_task(agent: Agent) -> Task:
     """
     return Task(
         description=(
-            "1. Utilise 'sheet_read_pending_rows' pour obtenir la liste des demandes "
-            "approuvées (Approuver envoi = OUI et Statut = En attente).\n"
-            "2. Si la liste est vide, arrête-toi et indique qu'il n'y a rien à envoyer.\n"
-            "3. Utilise 'drive_read_contenu_message' pour récupérer l'objet et le corps "
-            "HTML du mail avec le lien de téléchargement du Memento inclus. "
-            "Cette étape ne doit être faite qu'une seule fois : le contenu est "
-            "identique pour tous les destinataires.\n"
-            "4. Pour chaque ligne de la liste :\n"
-            "   a. Utilise 'send_email_via_graph' pour envoyer l'email.\n"
-            "   b. Utilise immédiatement 'sheet_update_status_envoye' avec le "
-            "row_index de la ligne pour passer le statut à 'Envoyé'.\n"
-            "5. Rapporte le nombre total d'emails envoyés et les adresses traitées."
+            "1. Utilise 'sheet_read_pending_rows' pour obtenir la liste des "
+            "lignes à traiter. Chaque ligne a un champ 'send_type' :\n"
+            "   - 'premier_envoi' : première fois que cette personne reçoit le Memento\n"
+            "   - 'renvoi'        : l'opérateur a approuvé un renvoi (O=Oui)\n\n"
+            "2. Si la liste est vide, termine et indique qu'il n'y a rien à envoyer.\n\n"
+            "3. Utilise 'drive_read_contenu_message' une seule fois pour récupérer "
+            "l'objet et le corps HTML (lien de téléchargement du Memento inclus). "
+            "Le contenu est identique pour tous les destinataires.\n\n"
+            "4. Pour chaque ligne, exécute la séquence suivante :\n\n"
+            "   a. Utilise 'send_email_via_graph' pour envoyer l'email.\n\n"
+            "   b. Si send_type = 'premier_envoi' :\n"
+            "      → Utilise 'sheet_update_status_envoye' (Statut → 'Envoyé')\n\n"
+            "   c. Si send_type = 'renvoi' :\n"
+            "      → Utilise 'sheet_clear_redondance' (O → vide) pour éviter "
+            "qu'un nouveau renvoi soit déclenché au prochain cycle.\n\n"
+            "   d. Dans TOUS les cas :\n"
+            "      → Utilise 'sheet_increment_envois' (Q + 1)\n\n"
+            "5. Rapporte le nombre total d'emails envoyés, en distinguant "
+            "premiers envois et renvois."
         ),
         expected_output=(
-            "Un résumé indiquant combien d'emails avec le lien de téléchargement "
-            "du Memento ont été envoyés avec succès, la liste des destinataires "
-            "traités et la confirmation que les statuts ont été mis à jour dans "
-            "le Google Sheet."
+            "Un résumé indiquant le nombre de premiers envois et de renvois "
+            "effectués, la liste des destinataires traités, et la confirmation "
+            "que les statuts et compteurs ont été mis à jour dans le Google Sheet."
         ),
         agent=agent,
     )

@@ -71,32 +71,37 @@ SUBJECT_KEYWORDS = [
 
 
 # ---------------------------------------------------------------------------
-# Mapping des colonnes du Google Sheet (index 0-based, 14 colonnes A → N)
+# Mapping des colonnes du Google Sheet (index 0-based, 17 colonnes A → Q)
 #
 # Colonnes remplies par l'agent :
-#   A=Devis | B=Société | C=Contact | E=E-mail | M=Statut | N=Date enregistrement
+#   A=Devis | B=Société | C=Contact | E=E-mail
+#   M=Statut | N=Date 1ère demande | O=Gestion redondances | P=Date dernière demande | Q=Nb envois
 #
 # Colonnes remplies manuellement :
 #   D=Tél. | F=PME | G=Visites entreprises | H=Visites centres | I=Autres visites
 #   J=Téléchargement études | K=Projet | L=Approuver envoi ?
 # ---------------------------------------------------------------------------
-COL_DEVIS = 0      # A — année en cours (ex. 2026), auto
-COL_SOCIETE = 1    # B — nom société extrait du domaine email, auto
-COL_CONTACT = 2    # C — "Prénom NOM" dans une cellule, auto
-COL_TEL = 3        # D — téléphone, manuel
-COL_EMAIL = 4      # E — adresse e-mail du demandeur, auto
-COL_PME = 5        # F — PME, manuel
-COL_VISITES_ENT = 6   # G — visites d'entreprises, manuel
-COL_VISITES_CTR = 7   # H — visites de centres de compétences, manuel
-COL_AUTRES_VIS = 8    # I — autres visites, manuel
-COL_TELECHARGEMENT = 9  # J — téléchargement études, manuel
-COL_PROJET = 10    # K — projet, manuel
-COL_APPROUVER = 11  # L — rempli manuellement : OUI / NON
-COL_STATUT = 12    # M — En attente / Envoyé, auto
-COL_DATE = 13      # N — timestamp jj/mm/aaaa hh:mm, auto
+COL_DEVIS = 0        # A — année en cours (ex. 2026), auto
+COL_SOCIETE = 1      # B — nom société extrait du domaine email, auto
+COL_CONTACT = 2      # C — "Prénom NOM" dans une cellule, auto
+COL_TEL = 3          # D — téléphone, manuel
+COL_EMAIL = 4        # E — adresse e-mail du demandeur, auto
+COL_PME = 5          # F — PME, manuel
+COL_VISITES_ENT = 6  # G — visites d'entreprises, manuel
+COL_VISITES_CTR = 7  # H — visites de centres de compétences, manuel
+COL_AUTRES_VIS = 8   # I — autres visites, manuel
+COL_TELECHARGEMENT = 9   # J — téléchargement études, manuel
+COL_PROJET = 10      # K — projet, manuel
+COL_APPROUVER = 11   # L — rempli manuellement : OUI / NON
+COL_STATUT = 12      # M — En attente / Envoyé, auto
+COL_DATE_PREMIERE = 13   # N — timestamp 1ère demande, auto (jamais écrasé)
+COL_REDONDANCE = 14  # O — "Envoyer à nouveau ?" (agent) → "Oui" (opérateur), auto/manuel
+COL_DATE_DERNIERE = 15   # P — timestamp n-ième demande, auto (vide si 1ère demande)
+COL_NB_ENVOIS = 16   # Q — nombre d'envois déjà effectués, auto (+1 à chaque envoi)
 
 STATUT_EN_ATTENTE = "En attente"
 STATUT_ENVOYE = "Envoyé"
+REDONDANCE_LABEL = "Envoyer à nouveau ?"  # Valeur posée par l'agent analyseur
 
 
 # ---------------------------------------------------------------------------
