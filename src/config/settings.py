@@ -64,15 +64,29 @@ SUBJECT_KEYWORDS = [
 
 
 # ---------------------------------------------------------------------------
-# Mapping des colonnes du Google Sheet (index 0-based)
-# Ordre réel : A=Email | B=Nom | C=Prenom | D=Approuver envoi? | E=Statut | F=Date
+# Mapping des colonnes du Google Sheet (index 0-based, 14 colonnes A → N)
+#
+# Colonnes remplies par l'agent :
+#   A=Devis | B=Société | C=Contact | E=E-mail | M=Statut | N=Date enregistrement
+#
+# Colonnes remplies manuellement :
+#   D=Tél. | F=PME | G=Visites entreprises | H=Visites centres | I=Autres visites
+#   J=Téléchargement études | K=Projet | L=Approuver envoi ?
 # ---------------------------------------------------------------------------
-COL_EMAIL = 0      # A — adresse email du demandeur
-COL_NOM = 1        # B — nom (en majuscules)
-COL_PRENOM = 2     # C — prénom (title case)
-COL_APPROUVER = 3  # D — rempli manuellement : OUI / NON
-COL_STATUT = 4     # E — En attente / Envoyé
-COL_DATE = 5       # F — timestamp jj/mm/aaaa hh:mm
+COL_DEVIS = 0      # A — année en cours (ex. 2026), auto
+COL_SOCIETE = 1    # B — nom société extrait du domaine email, auto
+COL_CONTACT = 2    # C — "Prénom NOM" dans une cellule, auto
+COL_TEL = 3        # D — téléphone, manuel
+COL_EMAIL = 4      # E — adresse e-mail du demandeur, auto
+COL_PME = 5        # F — PME, manuel
+COL_VISITES_ENT = 6   # G — visites d'entreprises, manuel
+COL_VISITES_CTR = 7   # H — visites de centres de compétences, manuel
+COL_AUTRES_VIS = 8    # I — autres visites, manuel
+COL_TELECHARGEMENT = 9  # J — téléchargement études, manuel
+COL_PROJET = 10    # K — projet, manuel
+COL_APPROUVER = 11  # L — rempli manuellement : OUI / NON
+COL_STATUT = 12    # M — En attente / Envoyé, auto
+COL_DATE = 13      # N — timestamp jj/mm/aaaa hh:mm, auto
 
 STATUT_EN_ATTENTE = "En attente"
 STATUT_ENVOYE = "Envoyé"

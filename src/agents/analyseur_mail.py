@@ -67,16 +67,18 @@ def build_analyseur_mail_task(agent: Agent) -> Task:
             "1. Utilise l'outil 'outlook_fetch_new_emails' pour récupérer les "
             "nouveaux emails depuis la dernière vérification.\n"
             "2. Pour chaque email retourné, utilise l'outil 'sheet_append_row' "
-            "pour ajouter une ligne dans le Google Sheet avec l'email, le prénom "
-            "et le NOM du demandeur.\n"
+            "pour ajouter une ligne dans le Google Sheet. L'outil remplira "
+            "automatiquement : Devis (année en cours), Société (extrait du domaine "
+            "email), Contact (Prénom NOM dans une cellule), E-mail, Statut "
+            "('En attente') et Date enregistrement.\n"
             "3. Si aucun email n'est trouvé, indique simplement qu'aucun nouveau "
             "message n'a été détecté.\n"
             "4. Rapporte le nombre de lignes ajoutées au total."
         ),
         expected_output=(
             "Un résumé indiquant combien de nouvelles demandes ont été enregistrées "
-            "dans le Google Sheet, avec le détail (prénom, NOM, email) pour chaque "
-            "entrée."
+            "dans le Google Sheet, avec le détail (Contact, E-mail, Société) "
+            "pour chaque entrée."
         ),
         agent=agent,
     )

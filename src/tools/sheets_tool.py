@@ -6,8 +6,14 @@ Fournit trois outils CrewAI pour interagir avec le Google Sheet de suivi :
   - SheetReadPendingTool   : lit les lignes à traiter (agent expediteur)
   - SheetUpdateStatusTool  : met à jour le statut après envoi (agent expediteur)
 
-Structure du Google Sheet :
-  A=Email | B=Nom | C=Prenom | D=Approuver envoi? | E=Statut | F=Date enregistrement
+Structure du Google Sheet (14 colonnes A → N) :
+  A=Devis        | B=Société   | C=Contact  | D=Tél.       | E=E-mail
+  F=PME          | G=Visites entreprises     | H=Visites centres compétences
+  I=Autres vis.  | J=Téléchargement études   | K=Projet
+  L=Approuver envoi ? | M=Statut | N=Date enregistrement demande Memento
+
+Colonnes auto (agent) : A, B, C, E, M, N
+Colonnes manuelles    : D, F, G, H, I, J, K, L
 """
 
 from datetime import datetime
@@ -22,6 +28,9 @@ from config import settings
 # Scope en écriture pour les opérations d'ajout et de mise à jour
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
+# Nombre total de colonnes du sheet (A=0 … N=13)
+TOTAL_COLUMNS = 14
+
 
 # ---------------------------------------------------------------------------
 # Client Google Sheets
@@ -30,9 +39,6 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 def _get_sheets_service():
     """
     Crée et retourne un client authentifié Google Sheets v4.
-
-    Utilise le compte de service dont le chemin JSON est défini dans
-    settings.GOOGLE_SERVICE_ACCOUNT_JSON.
 
     Returns:
         Resource: client Google Sheets prêt à l'emploi.
@@ -44,18 +50,53 @@ def _get_sheets_service():
     return build("sheets", "v4", credentials=creds)
 
 
-def _sheet_range(col_start: str = "A", col_end: str = "F") -> str:
+def _sheet_range(col_start: str = "A", col_end: str = "N") -> str:
     """
     Construit la plage A1 notation pour l'onglet configuré.
 
     Args:
         col_start: lettre de la colonne de départ (défaut 'A').
-        col_end:   lettre de la colonne de fin (défaut 'F').
+        col_end:   lettre de la colonne de fin (défaut 'N').
 
     Returns:
-        Plage au format 'NomOnglet!A:F'.
+        Plage au format 'NomOnglet!A:N'.
     """
     return f"{settings.GOOGLE_SHEET_TAB}!{col_start}:{col_end}"
+
+
+# ---------------------------------------------------------------------------
+# Extraction du nom de société depuis le domaine email
+# ---------------------------------------------------------------------------
+
+def _extract_company(email: str) -> str:
+    """
+    Extrait le nom de la société depuis le domaine de l'adresse email.
+
+    Algorithme :
+      1. Récupère la partie après '@'           → 'acme.com'
+      2. Supprime le TLD (.com, .fr, .org…)    → 'acme'
+      3. Applique le title case                 → 'Acme'
+
+    Exemples :
+      - sophie@acme.com       → 'Acme'
+      - contact@boisexemple.fr             → 'Boisexemple'
+      - info@foretexemple.com → 'Foretexemple'
+
+    Note : le résultat est une approximation destinée à être corrigée
+    manuellement si nécessaire.
+
+    Args:
+        email: adresse email du demandeur.
+
+    Returns:
+        Nom de société en title case, ou chaîne vide si extraction impossible.
+    """
+    try:
+        domain = email.split("@")[1]      # 'acme.com'
+        company_raw = domain.split(".")[0]  # 'acme'
+        return company_raw.title()          # 'Acme'
+    except IndexError:
+        return ""
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +106,7 @@ def _sheet_range(col_start: str = "A", col_end: str = "F") -> str:
 class SheetAppendInput(BaseModel):
     """Schéma d'entrée pour l'ajout d'une ligne dans le Google Sheet."""
 
-    email: str = Field(description="Adresse email du demandeur")
+    email: str = Field(description="Adresse e-mail du demandeur")
     prenom: str = Field(description="Prénom du demandeur")
     nom: str = Field(description="Nom du demandeur")
 
@@ -74,29 +115,32 @@ class SheetAppendTool(BaseTool):
     """
     Outil CrewAI pour insérer une nouvelle demande dans le Google Sheet.
 
-    Normalise automatiquement la casse :
-      - Prénom : title case (ex. 'jean' → 'Jean', 'jean-pierre' → 'Jean-Pierre')
-      - NOM    : majuscules (ex. 'dupont' → 'DUPONT')
+    Colonnes remplies automatiquement :
+      - A (Devis)    : année en cours (ex. '2026')
+      - B (Société)  : nom extrait du domaine email (title case)
+      - C (Contact)  : 'Prénom NOM' dans une cellule
+      - E (E-mail)   : adresse email brute
+      - M (Statut)   : 'En attente'
+      - N (Date)     : timestamp jj/mm/aaaa hh:mm
 
-    Les colonnes 'Approuver envoi ?' et 'Statut' sont gérées séparément :
-      - 'Approuver envoi ?' : laissée vide (remplie manuellement)
-      - 'Statut' : initialisé à 'En attente' automatiquement
+    Colonnes laissées vides (remplissage manuel) : D, F, G, H, I, J, K, L
     """
 
     name: str = "sheet_append_row"
     description: str = (
-        "Ajoute une nouvelle ligne dans le Google Sheet avec l'email, le prénom, "
-        "le NOM, la date d'enregistrement (timestamp auto) et le statut 'En attente'. "
-        "La colonne 'Approuver envoi ?' est laissée vide pour validation manuelle."
+        "Ajoute une nouvelle ligne dans le Google Sheet. "
+        "Remplit automatiquement : Devis (année), Société (domaine email), "
+        "Contact (Prénom NOM), E-mail, Statut ('En attente') et Date. "
+        "Les autres colonnes sont laissées vides pour saisie manuelle."
     )
     args_schema: type[BaseModel] = SheetAppendInput
 
     def _run(self, email: str, prenom: str, nom: str) -> str:
         """
-        Insère la ligne dans le Google Sheet avec normalisation de la casse.
+        Construit et insère la ligne dans le Google Sheet.
 
         Args:
-            email:  adresse email du demandeur.
+            email:  adresse e-mail du demandeur.
             prenom: prénom brut (sera mis en title case).
             nom:    nom brut (sera mis en majuscules).
 
@@ -105,13 +149,25 @@ class SheetAppendTool(BaseTool):
         """
         service = _get_sheets_service()
         now = datetime.now().strftime("%d/%m/%Y %H:%M")
+        year = str(datetime.now().year)  # ex. '2026'
 
-        # Normalisation de la casse avant insertion
-        prenom_fmt = prenom.title()   # 'jean' → 'Jean', 'jean-pierre' → 'Jean-Pierre'
+        # Normalisation de la casse
+        prenom_fmt = prenom.title()   # 'jean' → 'Jean'
         nom_fmt = nom.upper()         # 'dupont' → 'DUPONT'
+        contact = f"{prenom_fmt} {nom_fmt}"  # 'Jean DUPONT'
 
-        # Ordre des colonnes : A=Email | B=Nom | C=Prenom | D=vide | E=Statut | F=Date
-        row = [email, nom_fmt, prenom_fmt, "", settings.STATUT_EN_ATTENTE, now]
+        # Extraction du nom de société depuis le domaine de l'email
+        societe = _extract_company(email)
+
+        # Construction de la ligne sur 14 colonnes (A → N)
+        # Les colonnes manuelles (D, F-K, L) sont initialisées à vide
+        row = [""] * TOTAL_COLUMNS
+        row[settings.COL_DEVIS] = year
+        row[settings.COL_SOCIETE] = societe
+        row[settings.COL_CONTACT] = contact
+        row[settings.COL_EMAIL] = email
+        row[settings.COL_STATUT] = settings.STATUT_EN_ATTENTE
+        row[settings.COL_DATE] = now
 
         service.spreadsheets().values().append(
             spreadsheetId=settings.GOOGLE_SHEET_ID,
@@ -121,7 +177,10 @@ class SheetAppendTool(BaseTool):
             body={"values": [row]},
         ).execute()
 
-        return f"Ligne ajoutée : {prenom_fmt} {nom_fmt} <{email}> — {now}"
+        return (
+            f"Ligne ajoutée : {contact} <{email}> | "
+            f"Société : {societe} | Devis : {year} | {now}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -139,18 +198,17 @@ class SheetReadPendingTool(BaseTool):
     Outil CrewAI pour lire les demandes approuvées en attente d'envoi.
 
     Filtre les lignes du Google Sheet où :
-      - Colonne D (Approuver envoi ?) = 'OUI' (insensible à la casse)
-      - Colonne E (Statut) = 'En attente'
+      - Colonne L (Approuver envoi ?) = 'OUI' (insensible à la casse)
+      - Colonne M (Statut) = 'En attente'
 
-    Ce double filtre garantit qu'aucun email n'est envoyé deux fois :
-    une ligne déjà traitée a son statut à 'Envoyé' et est donc ignorée.
+    Ce double filtre garantit qu'aucun email n'est envoyé deux fois.
     """
 
     name: str = "sheet_read_pending_rows"
     description: str = (
         "Lit le Google Sheet et retourne toutes les lignes où "
-        "'Approuver envoi ?' = 'OUI' ET 'Statut' = 'En attente'. "
-        "Retourne une liste de dicts {row_index, email, prenom, nom}."
+        "'Approuver envoi ?' (col L) = 'OUI' ET 'Statut' (col M) = 'En attente'. "
+        "Retourne une liste de dicts {row_index, email, contact}."
     )
     args_schema: type[BaseModel] = SheetReadPendingInput
 
@@ -158,14 +216,11 @@ class SheetReadPendingTool(BaseTool):
         """
         Parcourt le Google Sheet et retourne les lignes éligibles à l'envoi.
 
-        La ligne 0 (en-tête) est ignorée. Les colonnes manquantes sont
-        complétées avec des chaînes vides pour éviter les erreurs d'index.
-
         Args:
             dummy: paramètre inutilisé (requis par l'interface BaseTool).
 
         Returns:
-            Liste de dicts {row_index, email, prenom, nom}.
+            Liste de dicts {row_index, email, contact}.
             row_index est 1-based (convention API Google Sheets).
         """
         service = _get_sheets_service()
@@ -182,7 +237,7 @@ class SheetReadPendingTool(BaseTool):
             if i == 0:
                 continue
 
-            # Compléter les colonnes manquantes (lignes partiellement remplies)
+            # Compléter les colonnes manquantes jusqu'à la colonne M (index 12)
             while len(row) <= settings.COL_STATUT:
                 row.append("")
 
@@ -192,10 +247,9 @@ class SheetReadPendingTool(BaseTool):
             # Double condition : approuvé manuellement ET pas encore envoyé
             if approuver == "OUI" and statut == settings.STATUT_EN_ATTENTE:
                 pending.append({
-                    "row_index": i + 1,  # Conversion en index 1-based pour l'API Sheets
-                    "email": row[settings.COL_EMAIL],
-                    "prenom": row[settings.COL_PRENOM],
-                    "nom": row[settings.COL_NOM],
+                    "row_index": i + 1,  # 1-based pour l'API Sheets
+                    "email": row[settings.COL_EMAIL] if len(row) > settings.COL_EMAIL else "",
+                    "contact": row[settings.COL_CONTACT] if len(row) > settings.COL_CONTACT else "",
                 })
 
         return pending
@@ -215,20 +269,21 @@ class SheetUpdateStatusTool(BaseTool):
     """
     Outil CrewAI pour passer le statut d'une ligne de 'En attente' à 'Envoyé'.
 
-    Doit être appelé immédiatement après chaque envoi email réussi
-    pour éviter qu'une ligne soit traitée à nouveau au prochain cycle.
+    Met à jour la cellule de la colonne M (Statut).
+    Doit être appelé immédiatement après chaque envoi email réussi.
     """
 
     name: str = "sheet_update_status_envoye"
     description: str = (
-        "Met à jour la colonne Statut d'une ligne donnée : 'En attente' → 'Envoyé'. "
+        "Met à jour la colonne M (Statut) d'une ligne donnée : "
+        "'En attente' → 'Envoyé'. "
         "À appeler immédiatement après chaque envoi email réussi."
     )
     args_schema: type[BaseModel] = SheetUpdateStatusInput
 
     def _run(self, row_index: int) -> str:
         """
-        Met à jour la cellule Statut de la ligne spécifiée.
+        Met à jour la cellule Statut (colonne M) de la ligne spécifiée.
 
         Args:
             row_index: numéro de ligne 1-based (tel que retourné par SheetReadPendingTool).
@@ -238,7 +293,7 @@ class SheetUpdateStatusTool(BaseTool):
         """
         service = _get_sheets_service()
 
-        # Calcul de la lettre de colonne : COL_STATUT=4 → 'E'
+        # COL_STATUT = 12 → lettre 'M' (A=0, B=1, ... M=12)
         col_letter = chr(ord("A") + settings.COL_STATUT)
         cell_range = f"{settings.GOOGLE_SHEET_TAB}!{col_letter}{row_index}"
 
