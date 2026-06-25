@@ -293,6 +293,8 @@ class SheetMarkRedondanceTool(BaseTool):
         Returns:
             Message de confirmation.
         """
+        if row_index <= 1:
+            return f"ERREUR : row_index={row_index} invalide — ligne 1 = en-tête protégée. Aucune modification."
         service = _get_sheets_service()
         now = datetime.now().strftime("%d/%m/%Y %H:%M")
 
@@ -444,6 +446,8 @@ class SheetUpdateStatusTool(BaseTool):
         Returns:
             Message de confirmation.
         """
+        if row_index <= 1:
+            return f"ERREUR : row_index={row_index} invalide — ligne 1 = en-tête protégée. Aucune modification."
         service = _get_sheets_service()
         col = _col_letter(settings.COL_STATUT)  # 'M'
         cell_range = f"{settings.GOOGLE_SHEET_TAB}!{col}{row_index}"
@@ -494,6 +498,8 @@ class SheetIncrementEnvoisTool(BaseTool):
         Returns:
             Message de confirmation avec la nouvelle valeur.
         """
+        if row_index <= 1:
+            return f"ERREUR : row_index={row_index} invalide — ligne 1 = en-tête protégée. Aucune modification."
         service = _get_sheets_service()
         col = _col_letter(settings.COL_NB_ENVOIS)  # 'Q'
         cell_range = f"{settings.GOOGLE_SHEET_TAB}!{col}{row_index}"
@@ -559,6 +565,8 @@ class SheetClearRedondanceTool(BaseTool):
         Returns:
             Message de confirmation.
         """
+        if row_index <= 1:
+            return f"ERREUR : row_index={row_index} invalide — ligne 1 = en-tête protégée. Aucune modification."
         service = _get_sheets_service()
         col = _col_letter(settings.COL_REDONDANCE)  # 'O'
         cell_range = f"{settings.GOOGLE_SHEET_TAB}!{col}{row_index}"

@@ -43,7 +43,7 @@ GOOGLE_DOC_CONTENU_MESSAGE_ID = os.getenv("GOOGLE_DOC_CONTENU_MESSAGE_ID", "")
 # LLM local — Ollama sur VPS
 # ---------------------------------------------------------------------------
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434")
-LLM_MODEL = os.getenv("LLM_MODEL", "ollama/llama3.1")
+LLM_MODEL = os.getenv("LLM_MODEL", "ollama/qwen2.5:14b")
 
 
 # ---------------------------------------------------------------------------
