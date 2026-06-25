@@ -58,6 +58,8 @@ def build_analyseur_mail_agent() -> Agent:
             "contacts déjà servis."
         ),
         backstory=(
+            "LANGUE : Tu réponds TOUJOURS en français, sans exception. "
+            "Toutes tes réponses, messages et rapports doivent être rédigés en français. "
             "Tu es un assistant de traitement des demandes d'accès au Memento. "
             "Tu surveilles en continu la boite email et tu extrais les informations "
             "du demandeur depuis la ligne 'De :' dans le corps du formulaire WordPress. "
@@ -90,6 +92,8 @@ def build_analyseur_mail_task(agent: Agent) -> Task:
     """
     return Task(
         description=(
+            "LANGUE : Réponds TOUJOURS en français. "
+            "Aucune réponse dans une autre langue n'est acceptée.\n\n"
             "IMPORTANT : utilise UNIQUEMENT les outils disponibles. "
             "N'écris pas de code Python. Ne génère pas de JSON inventé. "
             "Appelle les outils dans l'ordre indiqué ci-dessous.\n\n"
@@ -142,8 +146,8 @@ def build_analyseur_mail_task(agent: Agent) -> Task:
             "ÉTAPE 4 : Indique le nombre d'insertions, doublons et redondances."
         ),
         expected_output=(
-            "Texte simple indiquant : nombre d'emails traités, nombre d'insertions, "
-            "nombre de doublons ignorés, nombre de redondances signalées."
+            "Texte simple EN FRANÇAIS indiquant : nombre d'emails traités, "
+            "nombre d'insertions, nombre de doublons ignorés, nombre de redondances signalées."
         ),
         agent=agent,
     )
