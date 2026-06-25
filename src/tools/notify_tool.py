@@ -113,7 +113,7 @@ class NotifyOperatorTool(BaseTool):
 
             payload = {
                 "message": {
-                    "subject": f"[MailFlow] {subject}",
+                    "subject": subject,
                     "body": {
                         "contentType": "HTML",
                         "content": body_html,
