@@ -104,12 +104,18 @@ class NotifyOperatorTool(BaseTool):
                 "Content-Type": "application/json",
             }
 
-            body_html = f"""
-<p><strong>⚠️ Alerte MailFlow</strong></p>
-<p>{message}</p>
-<hr>
-<p><em>Message automatique — Agent analyseur_mail MailFlow</em></p>
-"""
+            # Convertir les sauts de ligne en <br> pour un rendu HTML correct
+            message_html = message.replace("\n", "<br>")
+
+            body_html = f"""<!DOCTYPE html>
+<html><body style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.8; color: #222;">
+<br>
+{message_html}
+<br><hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;">
+<p style="color: #888; font-size: 12px; font-style: italic;">
+Message automatique — Agent analyseur_mail MailFlow
+</p>
+</body></html>"""
 
             payload = {
                 "message": {
