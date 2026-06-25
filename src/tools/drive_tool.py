@@ -1,4 +1,4 @@
-"""
+﻿"""
 Outil Google Drive API — lecture du Google Doc ContenuMessage.
 
 Le fichier ContenuMessage est un Google Doc natif (pas un .docx uploadé).
@@ -105,31 +105,34 @@ def _clean_href(href: str) -> str:
 
 def _rebuild_paragraph(paragraph) -> str:
     """
-    Reconstruit le contenu d'un paragraphe HTML en ne conservant que les balises <a>.
+    Reconstruit le contenu d un paragraphe HTML en preservant les balises <a>.
 
-    Tous les autres éléments HTML (span, strong, em, etc.) sont aplatis en texte
-    brut pour produire un HTML minimal compatible email.
+    Recherche les liens <a> en profondeur (meme imbriques dans des <span>),
+    car Google Docs exporte souvent : <p>...<span><a href="...">texte</a></span>...</p>
 
-    Args:
-        paragraph: objet Tag BeautifulSoup représentant un paragraphe <p>.
-
-    Returns:
-        Chaîne HTML contenant le texte brut et les balises <a href="..."> préservées.
+    Algorithme :
+      1. Extraire le texte complet du paragraphe
+      2. Trouver tous les <a> (recursif via find_all)
+      3. Reinjecter chaque lien : remplacement texte -> <a href="...">texte</a>
     """
-    parts = []
-    for node in paragraph.children:
-        if getattr(node, "name", None) == "a":
-            # Balise <a> : préserver le lien avec l'URL désenveloppée
-            href = _clean_href(node.get("href", ""))
-            text = node.get_text()
-            parts.append(f'<a href="{href}">{text}</a>')
-        elif hasattr(node, "get_text"):
-            # Autres balises HTML : aplaties en texte brut
-            parts.append(node.get_text())
-        else:
-            # Nœud texte brut (NavigableString)
-            parts.append(str(node))
-    return "".join(parts)
+    all_links = paragraph.find_all("a")
+
+    if not all_links:
+        return paragraph.get_text()
+
+    result = paragraph.get_text()
+
+    for link in all_links:
+        link_text = link.get_text()
+        href = _clean_href(link.get("href", ""))
+        if href and link_text and link_text in result:
+            result = result.replace(
+                link_text,
+                f'<a href="{href}">{link_text}</a>',
+                1,
+            )
+
+    return result
 
 
 # ---------------------------------------------------------------------------
