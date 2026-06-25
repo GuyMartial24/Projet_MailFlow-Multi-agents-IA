@@ -229,12 +229,12 @@ class OutlookFetchTool(BaseTool):
             f"?$filter={odata_filter}"
             f"&$select=subject,body,receivedDateTime"
             f"&$top=50"
-            f"&$orderby=receivedDateTime asc"
         )
 
         response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
         messages = response.json().get("value", [])
+        messages.sort(key=lambda m: m.get("receivedDateTime", ""))
 
         results = []
         for msg in messages:
