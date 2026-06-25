@@ -97,7 +97,99 @@ def _save_last_check(ts: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Extraction des donnÃ©es du demandeur depuis le corps du formulaire
+# Extraction du nom depuis l'adresse email (source secondaire)
+# ---------------------------------------------------------------------------
+
+# Parties locales generiques a ignorer
+_GENERIC_LOCALS = {
+    "contact", "info", "admin", "support", "noreply", "no-reply",
+    "hello", "bonjour", "service", "direction", "secretariat",
+    "accueil", "communication", "commercial", "rdv",
+}
+
+
+def _extract_name_from_email(email: str) -> tuple[str, str]:
+    """
+    Tente d'extraire prenom et nom depuis la partie locale de l'adresse email.
+
+    Exemples :
+      paul.martin@entreprise.com      -> ("Paul", "Martin")
+      marie-claire.durand@exemple.fr     -> ("Marie-Claire", "Durand")
+      p.martin@entreprise.com          -> ("", "")   # initiale seule = ignoree
+      jdupont75@gmail.com         -> ("", "")   # chiffres = ignore
+      contact@company.com         -> ("", "")   # generique = ignore
+
+    Returns:
+        Tuple (prenom_raw, nom_raw) sans formatage de casse.
+        Retourne ("", "") si l'extraction n'est pas fiable.
+    """
+    try:
+        local = email.split("@")[0].lower()
+    except IndexError:
+        return "", ""
+
+    # Ignorer les adresses generiques
+    if local in _GENERIC_LOCALS:
+        return "", ""
+
+    # Ignorer si commence par un chiffre (alias numerique type jdupont75)
+    if local and local[0].isdigit():
+        return "", ""
+
+    # Decouper par separateurs courants : point, tiret, underscore
+    raw_parts = re.split(r"[.\-_]", local)
+
+    # Filtrer : garder uniquement les parties sans chiffres et de longueur > 1
+    # (les initialesseules comme "c" sont peu fiables)
+    meaningful = [
+        p for p in raw_parts
+        if len(p) > 1 and not any(c.isdigit() for c in p)
+    ]
+
+    if not meaningful:
+        return "", ""
+    if len(meaningful) == 1:
+        # Un seul mot : prenom seulement, nom vide
+        return meaningful[0], ""
+
+    # Plusieurs mots : premier = prenom, reste = nom
+    prenom_raw = meaningful[0]
+    nom_raw = " ".join(meaningful[1:])
+    return prenom_raw, nom_raw
+
+
+def _pick_best_name(
+    body_prenom: str,
+    body_nom: str,
+    email_prenom: str,
+    email_nom: str,
+) -> tuple[str, str]:
+    """
+    Compare les deux sources et retient la version la plus complete.
+
+    Regles de priorite :
+      1. Si une source a prenom ET nom, l'autre seulement prenom -> prefer complete
+      2. Si les deux ont prenom+nom -> prefer body (saisie directe, plus authentique)
+      3. Si email n'apporte rien -> garder body tel quel
+
+    La mise en forme (title case / uppercase) est appliquee par l'appelant.
+
+    Returns:
+        Tuple (prenom_raw, nom_raw) sans formatage de casse.
+    """
+    body_score = (1 if body_prenom else 0) + (1 if body_nom else 0)
+    email_score = (1 if email_prenom else 0) + (1 if email_nom else 0)
+
+    if email_score > body_score:
+        # Email apporte plus d'information (ex : body="Martin"+"", email="Paul"+"Martin")
+        return email_prenom, email_nom
+
+    # Par defaut : body (plus authentique quand equivalent ou superieur)
+    return body_prenom, body_nom
+
+
+# ---------------------------------------------------------------------------
+# Extraction des donnees du demandeur depuis le corps du formulaire
 # ---------------------------------------------------------------------------
 
 def _extract_from_wordpress_body(body: str) -> tuple[str, str, str]:
@@ -118,7 +210,7 @@ def _extract_from_wordpress_body(body: str) -> tuple[str, str, str]:
         Tuple (email, prenom, nom). Retourne ("", "", "") si la ligne est absente
         ou ne correspond pas au format attendu.
     """
-    # Capture : tout ce qui prÃ©cÃ¨de l'email = nom complet, puis l'email lui-mÃªme
+        # Capture : tout ce qui precede l'email = nom complet, puis l'email lui-meme
     pattern = re.compile(
         r"De\s*:\s*(.+?)\s+([\w.+\-]+@[\w.\-]+\.[a-zA-Z]{2,})",
         re.IGNORECASE,
@@ -130,10 +222,16 @@ def _extract_from_wordpress_body(body: str) -> tuple[str, str, str]:
     full_name = match.group(1).strip()
     email = match.group(2).strip()
 
-    # DÃ©composition du nom complet : premier mot = prÃ©nom, reste = NOM
+    # Source 1 : decomposition du nom complet depuis le corps du formulaire
     parts = full_name.split()
-    prenom = parts[0] if parts else ""
-    nom = " ".join(parts[1:]) if len(parts) > 1 else ""
+    body_prenom = parts[0] if parts else ""
+    body_nom = " ".join(parts[1:]) if len(parts) > 1 else ""
+
+    # Source 2 : extraction depuis la partie locale de l'adresse email
+    email_prenom, email_nom = _extract_name_from_email(email)
+
+    # Comparaison : on retient la version la plus complete
+    prenom, nom = _pick_best_name(body_prenom, body_nom, email_prenom, email_nom)
 
     return email, prenom, nom
 

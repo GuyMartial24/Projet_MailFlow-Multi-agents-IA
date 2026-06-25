@@ -238,11 +238,23 @@ class SheetAppendTool(BaseTool):
         row[settings.COL_DATE_PREMIERE] = now
         # O (COL_REDONDANCE), P (COL_DATE_DERNIERE), Q (COL_NB_ENVOIS) restent vides
 
-        service.spreadsheets().values().append(
+        # Calcul de la prochaine ligne vide via la colonne A
+        # (évite le décalage causé par append() quand des données existent au-delà de Q)
+        col_a = service.spreadsheets().values().get(
             spreadsheetId=settings.GOOGLE_SHEET_ID,
-            range=_sheet_range(),
+            range=f"{settings.GOOGLE_SHEET_TAB}!A:A",
+        ).execute()
+        next_row = len(col_a.get("values", [])) + 1
+
+        # Écriture à la position exacte, garantie colonne A
+        col_end = _col_letter(TOTAL_COLUMNS - 1)  # 'Q'
+        target_range = (
+            f"{settings.GOOGLE_SHEET_TAB}!A{next_row}:{col_end}{next_row}"
+        )
+        service.spreadsheets().values().update(
+            spreadsheetId=settings.GOOGLE_SHEET_ID,
+            range=target_range,
             valueInputOption="USER_ENTERED",
-            insertDataOption="INSERT_ROWS",
             body={"values": [row]},
         ).execute()
 

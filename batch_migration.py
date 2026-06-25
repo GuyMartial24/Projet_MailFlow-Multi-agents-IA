@@ -22,15 +22,19 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
+import time
+
 import msal
 import requests
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 
 from config import settings
 from tools.outlook_tool import _extract_from_wordpress_body
-from tools.sheets_tool import SheetFindEmailTool, SheetAppendTool
+from tools.sheets_tool import TOTAL_COLUMNS, _col_letter, _extract_company
 
 # Nom exact du dossier Outlook (insensible a la casse)
-FOLDER_NAME = "demande de telechargement memento"
+FOLDER_NAME = "demandes téléchargements mémento 2025"
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 PAGE_SIZE = 50
@@ -155,8 +159,35 @@ def main() -> None:
         log.info("Aucun email a traiter. Fin du script.")
         return
 
-    find_tool = SheetFindEmailTool()
-    append_tool = SheetAppendTool()
+    # ── Connexion Google Sheets ──────────────────────────────────────────────
+    creds = service_account.Credentials.from_service_account_file(
+        settings.GOOGLE_SERVICE_ACCOUNT_JSON,
+        scopes=["https://www.googleapis.com/auth/spreadsheets"],
+    )
+    sheets = build("sheets", "v4", credentials=creds)
+
+    # ── Lecture unique du Sheet (1 seul appel API) ───────────────────────────
+    log.info("Lecture du Google Sheet (1 seul appel)...")
+    result = sheets.spreadsheets().values().get(
+        spreadsheetId=settings.GOOGLE_SHEET_ID,
+        range=f"{settings.GOOGLE_SHEET_TAB}!A:Q",
+    ).execute()
+    existing_rows = result.get("values", [])
+
+    # Ensemble des emails déjà présents (colonne E = index 4), en minuscules
+    existing_emails = set()
+    for idx, row in enumerate(existing_rows):
+        if idx == 0:  # ignorer l'en-tête
+            continue
+        if len(row) > settings.COL_EMAIL and row[settings.COL_EMAIL].strip():
+            existing_emails.add(row[settings.COL_EMAIL].strip().lower())
+
+    # Prochaine ligne vide basée sur la colonne A
+    next_row = len(existing_rows) + 1
+    log.info(f"{len(existing_emails)} emails existants | prochaine ligne : {next_row}")
+
+    col_end = _col_letter(TOTAL_COLUMNS - 1)  # 'Q'
+    year = str(__import__("datetime").datetime.now().year)
 
     inserted = skipped = unparsable = errors = 0
 
@@ -171,19 +202,45 @@ def main() -> None:
             unparsable += 1
             continue
 
-        try:
-            result = find_tool._run(email=email)
-            if result.get("found"):
-                log.info(
-                    f"[{i:3}/{total}] Doublon ignore - {email} "
-                    f"(ligne {result.get('row_index')}, statut={result.get('statut')})"
-                )
-                skipped += 1
-                continue
+        # Vérification doublon en mémoire (0 appel API)
+        if email.strip().lower() in existing_emails:
+            log.info(f"[{i:3}/{total}] Doublon ignore - {email}")
+            skipped += 1
+            continue
 
-            res = append_tool._run(email=email, prenom=prenom, nom=nom)
-            log.info(f"[{i:3}/{total}] INSERE - {res}")
+        try:
+            from datetime import datetime as _dt
+            now = _dt.now().strftime("%d/%m/%Y %H:%M")
+
+            prenom_fmt = prenom.title()
+            nom_fmt = nom.upper()
+            contact = f"{prenom_fmt} {nom_fmt}"
+            societe = _extract_company(email)
+
+            row = [""] * TOTAL_COLUMNS
+            row[settings.COL_DEVIS] = year
+            row[settings.COL_SOCIETE] = societe
+            row[settings.COL_CONTACT] = contact
+            row[settings.COL_EMAIL] = email
+            row[settings.COL_STATUT] = settings.STATUT_EN_ATTENTE
+            row[settings.COL_DATE_PREMIERE] = now
+
+            target = f"{settings.GOOGLE_SHEET_TAB}!A{next_row}:{col_end}{next_row}"
+            sheets.spreadsheets().values().update(
+                spreadsheetId=settings.GOOGLE_SHEET_ID,
+                range=target,
+                valueInputOption="USER_ENTERED",
+                body={"values": [row]},
+            ).execute()
+
+            existing_emails.add(email.strip().lower())  # anti-doublon in-session
+            next_row += 1
             inserted += 1
+            log.info(
+                f"[{i:3}/{total}] INSERE - {contact} <{email}> | "
+                f"Societe : {societe} | {now}"
+            )
+            time.sleep(1.1)  # respecte la limite de 60 ecritures/min
 
         except Exception as exc:
             log.error(f"[{i:3}/{total}] Erreur sur {email} : {exc}")
