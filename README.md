@@ -22,50 +22,50 @@ La solution devait répondre à deux contraintes fortes :
 
 - **Confidentialité** : les données des demandeurs (nom, email) ne transitent par aucun
   service cloud tiers. La solution est hébergée sur un **VPS privé sous Linux (Oracle)**,
-  y compris les agents IA. Aucune donnée n'est envoyée à une API d'inférence externe.
+  y compris les agents IA et le LLM. Aucune donnée n'est envoyée à une API d'inférence externe.
 
-- **Technologie & granularité** : le système est construit avec **CrewAI**, framework Python de
-  multi-agents IA. Contrairement aux solutions No-code / Low-code (Make, Zapier, n8n…),
-  une implémentation en code pur offre un niveau de granularité bien supérieur :
-  contrôle fin des filtres email (logique AND/OR), extraction ciblée du demandeur
-  dans le corps du formulaire WordPress, fetch incrémental sans doublon,
-  parsing ciblé d'un Google Doc natif, envoi d'un email avec lien de téléchargement
-  du Memento, et mise à jour atomique du statut ligne par ligne. Chaque comportement est explicitement maîtrisé,
+- **Technologie & granularité** : le système combine **CrewAI** (agent analyseur) et
+  **Python pur** (agent expéditeur). Contrairement aux solutions No-code / Low-code (Make,
+  Zapier, n8n…), une implémentation en code pur offre un niveau de granularité bien supérieur :
+  contrôle fin des filtres email (logique AND/OR), extraction multi-sources du demandeur,
+  gestion des doublons et redondances, fetch incrémental sans doublon, parsing ciblé d'un
+  Google Doc natif, envoi HTML avec lien de téléchargement, et mise à jour atomique du statut
+  ligne par ligne. Chaque comportement est explicitement maîtrisé,
   sans dépendre des limites ou des boîtes noires d'un outil visuel.
 
 ---
 
 ## Solution
 
-Système automatisé basé sur **CrewAI** pour traiter les demandes d'accès au Memento.
-Deux agents IA tournent en parallèle et en continu sur le VPS.
+Système automatisé pour traiter les demandes d'accès au Memento.
+Deux agents tournent en parallèle et en continu sur le VPS.
 
-### Agent `analyseur_mail` — Surveillance de la boite mail
+### Agent `analyseur_mail` — Surveillance de la boite mail (CrewAI + qwen2.5:14b)
 
-Cet agent interroge la boite Outlook de l'utilisateur **toutes les 5 minutes** via
-Microsoft Graph API. À chaque cycle, il récupère uniquement les emails reçus **depuis
-sa dernière exécution** grâce à un timestamp horodaté sauvegardé localement
-(`state/last_check_outlook.json`). Ce mécanisme de **fetch incrémental** garantit
-qu'aucun email n'est traité deux fois.
+Interroge la boite Outlook **toutes les 5 minutes** via Microsoft Graph API.
+Fetch incrémental : seuls les emails reçus depuis la dernière exécution sont traités.
 
-Chaque email est filtré :
-- expéditeur `formulaire@exemple.fr` (notifications WordPress)
-- objet contenant une variante de "Demande Mémento"
+Pour chaque email détecté, l'agent applique une **logique à 3 cas** :
 
-Pour chaque demande détectée, l'agent extrait l'email, le prénom et le NOM du demandeur
-depuis la ligne `De :` dans le corps du formulaire, puis insère une nouvelle ligne dans
-le Google Sheet avec le statut `En attente`.
+| Cas | Condition | Action |
+|-----|-----------|--------|
+| 1 — Nouveau | Email absent du Sheet | Insertion nouvelle ligne (Statut = *En attente*) |
+| 2 — Doublon | Email présent + Statut = *En attente* | Notification opérateur |
+| 3 — Redondance | Email présent + Approuver = OUI + Statut = *Envoyé* | Marque O = *Envoyer à nouveau ?* + notification |
 
-### Agent `expediteur` — Surveillance du Google Sheet
+Les **notifications** (cas 2 et 3) sont envoyées par double canal : log journalctl +
+email à la boite de l'opérateur avec les actions disponibles.
 
-Cet agent lit le Google Sheet **toutes les 7 minutes**. À chaque cycle, il parcourt
-toutes les lignes et cible exclusivement celles qui réunissent deux conditions :
-- colonne **Approuver envoi ?** = `OUI` (validé manuellement)
-- colonne **Statut** = `En attente`
+### Agent `expediteur` — Surveillance du Google Sheet (Python pur, sans LLM)
 
-Pour chaque ligne éligible, il récupère le contenu du message depuis le Google Doc
-ContenuMessage, envoie un email avec le lien de téléchargement du Memento,
-puis met à jour le statut de la ligne à `Envoyé` — empêchant tout double envoi.
+Lit le Google Sheet **toutes les 7 minutes**. Orchestration **100% Python** — aucun LLM
+impliqué, éliminant tout risque d'hallucination sur l'objet ou le corps du message.
+
+Deux types d'envoi :
+- **Premier envoi** : Approuver = `OUI` + Statut = *En attente*
+- **Renvoi** : Approuver = `OUI` + Statut = *Envoyé* + O = `Oui` (approuvé manuellement)
+
+Après chaque envoi : Statut mis à jour, colonne O vidée (anti-boucle), compteur Q incrémenté.
 
 ---
 
@@ -76,6 +76,7 @@ puis met à jour le statut de la ligne à `Envoyé` — empêchant tout double e
 - Un compte de service Google (Google Cloud Console)
 - Accès au Google Sheet et au Google Doc ContenuMessage
 - Une boite Outlook avec accès Microsoft Graph API configuré
+- **Ollama** installé sur le VPS avec le modèle **qwen2.5:14b** (`ollama pull qwen2.5:14b`)
 
 ---
 
@@ -101,22 +102,21 @@ pip install -r requirements.txt
 
 ### 1. Fichier `.env`
 
-Copier `.env.example` en `.env` et renseigner les valeurs manquantes :
+Copier `.env.example` en `.env` et renseigner les valeurs :
 
 ```bash
 copy .env.example .env
 ```
 
-Les credentials Microsoft Graph API et les IDs Google sont déjà documentés dans `.env.example`.
-
 ### 2. Compte de service Google
 
-Déposer le fichier `google_service_account.json` dans :
+Déposer le fichier JSON du compte de service dans :
 ```
 src/config/credentials/google_service_account.json
 ```
 
-Partager ensuite le Google Sheet et le Google Doc ContenuMessage avec l'email du compte de service (visible dans le JSON, champ `client_email`).
+Partager le Google Sheet et le Google Doc ContenuMessage avec l'email du compte de service
+(champ `client_email` dans le JSON).
 
 ---
 
@@ -126,8 +126,13 @@ Partager ensuite le Google Sheet et le Google Doc ContenuMessage avec l'email du
 python main.py
 ```
 
-Le programme démarre les deux agents en parallèle et affiche les logs en temps réel.
-Arrêt propre avec `Ctrl+C`.
+Le programme démarre les deux agents en parallèle. Arrêt propre avec `Ctrl+C`.
+
+En production sur le VPS, le service systemd gère le démarrage automatique :
+```bash
+sudo systemctl start mailflow
+sudo journalctl -u mailflow -f   # logs en temps réel
+```
 
 ---
 
@@ -140,35 +145,44 @@ MailFlow/
 ├── .gitignore
 ├── requirements.txt
 ├── main.py                       # Point d'entrée — boucles de polling
+├── batch_migration.py            # Script one-shot import dossier Outlook → Sheet
 ├── docs/
 │   ├── logique_projet_MailFlow.md
 │   └── README_REMPLACEMENT_FICHIER_MEMENTO.txt
+├── deploy/
+│   ├── mailflow.service          # Service systemd VPS
+│   └── INSTALL_VPS.md            # Guide de déploiement
 ├── src/
-│   ├── crew.py                   # Définition des deux Crews CrewAI
+│   ├── crew.py                   # analyseur_mail (Crew) + expediteur (Python pur)
 │   ├── agents/
-│   │   ├── analyseur_mail.py     # Agent 1 : surveillance emails
-│   │   └── expediteur.py         # Agent 2 : envoi email lien téléchargement Memento
+│   │   ├── analyseur_mail.py     # Agent CrewAI : surveillance emails, 3 cas
+│   │   └── expediteur.py         # Python pur : envoi Memento, anti-hallucination
 │   ├── tools/
 │   │   ├── outlook_tool.py       # Fetch emails Outlook (Graph API)
 │   │   ├── send_mail_tool.py     # Envoi email HTML (Graph API)
-│   │   ├── sheets_tool.py        # Lecture/écriture Google Sheets
-│   │   └── drive_tool.py         # Export Google Doc + parsing
+│   │   ├── sheets_tool.py        # Lecture/écriture Google Sheets (7 outils)
+│   │   ├── drive_tool.py         # Export Google Doc + parsing HTML
+│   │   └── notify_tool.py        # Notifications opérateur (log + email)
 │   └── config/
 │       ├── settings.py           # Lecture centralisée du .env
+│       ├── llm.py                # Factory LLM Ollama (qwen2.5:14b)
 │       └── credentials/
 │           └── google_service_account.json  # À déposer ici (non versionné)
 └── state/
-    └── last_check_outlook.json   # Timestamp incrémental (auto-créé)
+    └── last_check_outlook.json   # Timestamp incrémental (auto-créé, non versionné)
 ```
 
 ---
 
-## Fonctionnement
+## Fonctionnement complet
 
 | Étape | Agent | Action |
 |-------|-------|--------|
-| 1 | `analyseur_mail` | Détecte les emails de `formulaire@exemple.fr` avec objet "demande memento" |
-| 2 | `analyseur_mail` | Enregistre Email, Nom, Prénom, Date dans Google Sheets (Statut = *En attente*) |
-| 3 | Humain | Remplit la colonne **Approuver envoi ?** avec `OUI` dans le Google Sheet |
-| 4 | `expediteur` | Détecte les lignes `OUI` + `En attente`, envoie l'email avec le lien de téléchargement du Memento |
-| 5 | `expediteur` | Met à jour le Statut → **Envoyé** |
+| 1 | `analyseur_mail` | Fetch emails `formulaire@exemple.fr` depuis la dernière exécution |
+| 2a | `analyseur_mail` | **Nouveau** : insère dans le Sheet (Dévis, Société, Contact, E-mail, Statut=*En attente*) |
+| 2b | `analyseur_mail` | **Doublon** : notifie l'opérateur par email + log |
+| 2c | `analyseur_mail` | **Redondance** : marque O=*Envoyer à nouveau ?* + notifie |
+| 3 | Humain | Met **L = `OUI`** dans le Sheet pour approuver l'envoi |
+| 3b | Humain (renvoi) | Met **O = `Oui`** pour approuver un renvoi à un contact déjà servi |
+| 4 | `expediteur` | Lit ContenuMessage (Google Doc), envoie l'email avec le lien du Memento |
+| 5 | `expediteur` | Statut → *Envoyé*, Q + 1 (compteur d'envois) |
