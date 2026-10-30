@@ -1,12 +1,12 @@
-﻿"""
-Outil Microsoft Graph API â€” lecture de la boite Outlook.
+"""
+Outil Microsoft Graph API — lecture de la boite Outlook.
 
-Structure rÃ©elle des emails WordPress reÃ§us :
-  En-tÃªte : De : Formulaire <formulaire@exemple.fr>  â†’ filtre d'entrÃ©e uniquement
-  Corps   : "De : Jean Dupont jean.dupont@gmail.com"  â†’ source unique d'extraction
+Structure réelle des emails WordPress reçus :
+  En-tête : De : Formulaire <formulaire@exemple.fr>  → filtre d'entrée uniquement
+  Corps   : "De : Jean Dupont jean.dupont@gmail.com"  → source unique d'extraction
 
-Le champ From de l'email est toujours 'Formulaire' (expÃ©diteur WordPress),
-jamais le vrai demandeur. Toute l'extraction (email, prÃ©nom, NOM) se fait
+Le champ From de l'email est toujours 'Formulaire' (expéditeur WordPress),
+jamais le vrai demandeur. Toute l'extraction (email, prénom, NOM) se fait
 exclusivement depuis la ligne "De :" dans le corps du message.
 """
 
@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from config import settings
 
-# Fichier local stockant le timestamp de la derniÃ¨re vÃ©rification (fetch incrÃ©mental)
+# Fichier local stockant le timestamp de la dernière vérification (fetch incrémental)
 STATE_FILE = Path("state/last_check_outlook.json")
 
 # URL de base de l'API Microsoft Graph
@@ -36,16 +36,16 @@ GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
 def _get_access_token() -> str:
     """
-    Obtient un token d'accÃ¨s OAuth 2.0 via le flux client credentials (MSAL).
+    Obtient un token d'accès OAuth 2.0 via le flux client credentials (MSAL).
 
-    Le token est gÃ©nÃ©rÃ© Ã  la demande Ã  chaque cycle et n'est pas mis en cache
-    pour Ã©viter les expirations silencieuses.
+    Le token est généré à la demande à chaque cycle et n'est pas mis en cache
+    pour éviter les expirations silencieuses.
 
     Returns:
-        Jeton d'accÃ¨s sous forme de chaÃ®ne.
+        Jeton d'accès sous forme de chaîne.
 
     Raises:
-        RuntimeError: si l'authentification Ã©choue (mauvais credentials, etc.).
+        RuntimeError: si l'authentification échoue (mauvais credentials, etc.).
     """
     app = msal.ConfidentialClientApplication(
         client_id=settings.MS_CLIENT_ID,
@@ -57,22 +57,22 @@ def _get_access_token() -> str:
     )
     if "access_token" not in result:
         raise RuntimeError(
-            f"Ã‰chec auth Graph API : {result.get('error_description')}"
+            f"Échec auth Graph API : {result.get('error_description')}"
         )
     return result["access_token"]
 
 
 # ---------------------------------------------------------------------------
-# Gestion du timestamp de dernier fetch (fetch incrÃ©mental)
+# Gestion du timestamp de dernier fetch (fetch incrémental)
 # ---------------------------------------------------------------------------
 
 def _load_last_check() -> Optional[str]:
     """
-    Lit le timestamp ISO 8601 de la derniÃ¨re vÃ©rification depuis le fichier d'Ã©tat.
+    Lit le timestamp ISO 8601 de la dernière vérification depuis le fichier d'état.
 
     Returns:
-        Timestamp sous forme de chaÃ®ne (ex: '2026-06-23T10:00:00Z'),
-        ou None si le fichier n'existe pas encore (premier dÃ©marrage).
+        Timestamp sous forme de chaîne (ex: '2026-06-23T10:00:00Z'),
+        ou None si le fichier n'existe pas encore (premier démarrage).
     """
     if STATE_FILE.exists():
         data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
@@ -82,12 +82,12 @@ def _load_last_check() -> Optional[str]:
 
 def _save_last_check(ts: str) -> None:
     """
-    Sauvegarde le timestamp ISO 8601 du cycle en cours dans le fichier d'Ã©tat.
+    Sauvegarde le timestamp ISO 8601 du cycle en cours dans le fichier d'état.
 
-    CrÃ©e le rÃ©pertoire state/ si nÃ©cessaire.
+    Crée le répertoire state/ si nécessaire.
 
     Args:
-        ts: timestamp ISO 8601 Ã  persister (ex: '2026-06-23T10:05:00Z').
+        ts: timestamp ISO 8601 à persister (ex: '2026-06-23T10:05:00Z').
     """
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(
@@ -194,14 +194,14 @@ def _pick_best_name(
 
 def _extract_from_wordpress_body(body: str) -> tuple[str, str, str]:
     """
-    Extrait l'email, le prÃ©nom et le NOM du demandeur depuis le corps du mail WordPress.
+    Extrait l'email, le prénom et le NOM du demandeur depuis le corps du mail WordPress.
 
-    Le formulaire de contact WordPress gÃ©nÃ¨re un email dont le corps contient :
+    Le formulaire de contact WordPress génère un email dont le corps contient :
         De : Jean Dupont jean.dupont@gmail.com
-        Objet : Demande MÃ©mento 2025
+        Objet : Demande Mémento 2025
         Corps du message : ...
 
-    La regex cible la ligne 'De :' et sÃ©pare le nom complet de l'adresse email.
+    La regex cible la ligne 'De :' et sépare le nom complet de l'adresse email.
 
     Args:
         body: contenu texte brut du corps de l'email.
@@ -242,44 +242,44 @@ def _extract_from_wordpress_body(body: str) -> tuple[str, str, str]:
 
 def _subject_matches(subject: str) -> bool:
     """
-    VÃ©rifie si l'objet de l'email correspond Ã  une demande de Memento.
+    Vérifie si l'objet de l'email correspond à une demande de Memento.
 
-    Compare l'objet (en minuscules) avec chaque mot-clÃ© dÃ©fini dans
+    Compare l'objet (en minuscules) avec chaque mot-clé défini dans
     settings.SUBJECT_KEYWORDS (condition OR).
 
     Args:
-        subject: objet de l'email Ã  vÃ©rifier.
+        subject: objet de l'email à vérifier.
 
     Returns:
-        True si l'objet contient au moins un des mots-clÃ©s, False sinon.
+        True si l'objet contient au moins un des mots-clés, False sinon.
     """
     subject_lower = subject.lower()
     return any(kw in subject_lower for kw in settings.SUBJECT_KEYWORDS)
 
 
 # ---------------------------------------------------------------------------
-# Outil CrewAI â€” fetch des nouveaux emails
+# Outil CrewAI — fetch des nouveaux emails
 # ---------------------------------------------------------------------------
 
 class OutlookFetchInput(BaseModel):
-    """SchÃ©ma d'entrÃ©e du tool (aucun paramÃ¨tre requis)."""
+    """Schéma d'entrée du tool (aucun paramètre requis)."""
 
-    dummy: str = Field(default="", description="Pas de paramÃ¨tre requis.")
+    dummy: str = Field(default="", description="Pas de paramètre requis.")
 
 
 class OutlookFetchTool(BaseTool):
     """
-    Outil CrewAI pour rÃ©cupÃ©rer les nouveaux emails de demande de Memento.
+    Outil CrewAI pour récupérer les nouveaux emails de demande de Memento.
 
-    Interroge la boite Outlook via Microsoft Graph API en mode incrÃ©mental :
-    seuls les emails reÃ§us depuis le dernier cycle sont rÃ©cupÃ©rÃ©s.
+    Interroge la boite Outlook via Microsoft Graph API en mode incrémental :
+    seuls les emails reçus depuis le dernier cycle sont récupérés.
     """
 
     name: str = "outlook_fetch_new_emails"
     description: str = (
-        "RÃ©cupÃ¨re les nouveaux emails de formulaire@exemple.fr dans la boite Outlook "
-        "depuis la derniÃ¨re exÃ©cution, filtrÃ©s par mots-clÃ©s dans l'objet. "
-        "Extrait l'email, le prÃ©nom et le NOM du vrai demandeur depuis la ligne "
+        f"Récupère les nouveaux emails de {settings.FILTER_SENDER} dans la boite Outlook "
+        "depuis la dernière exécution, filtrés par mots-clés dans l'objet. "
+        "Extrait l'email, le prénom et le NOM du vrai demandeur depuis la ligne "
         "'De :' dans le corps du formulaire WordPress. "
         "Retourne une liste de dicts {email, prenom, nom, received_at}."
     )
@@ -287,17 +287,17 @@ class OutlookFetchTool(BaseTool):
 
     def _run(self, dummy: str = "") -> list[dict]:
         """
-        ExÃ©cute le fetch incrÃ©mental et retourne les demandes dÃ©tectÃ©es.
+        Exécute le fetch incrémental et retourne les demandes détectées.
 
-        Ã‰tapes :
+        Étapes :
           1. Authentification Graph API
-          2. Construction du filtre OData (expÃ©diteur + date > last_check)
-          3. RÃ©cupÃ©ration des messages en texte brut
+          2. Construction du filtre OData (expéditeur + date > last_check)
+          3. Récupération des messages en texte brut
           4. Filtrage par objet et extraction du demandeur depuis le corps
           5. Sauvegarde du timestamp courant
 
         Args:
-            dummy: paramÃ¨tre inutilisÃ© (requis par l'interface BaseTool).
+            dummy: paramètre inutilisé (requis par l'interface BaseTool).
 
         Returns:
             Liste de dicts {email, prenom, nom, received_at}.
@@ -313,7 +313,7 @@ class OutlookFetchTool(BaseTool):
         last_check = _load_last_check()
         now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # Filtre OData : expÃ©diteur WordPress ET date supÃ©rieure au dernier cycle
+        # Filtre OData : expéditeur WordPress ET date supérieure au dernier cycle
         filter_parts = [
             f"from/emailAddress/address eq '{settings.FILTER_SENDER}'"
         ]
@@ -338,14 +338,14 @@ class OutlookFetchTool(BaseTool):
         for msg in messages:
             subject = msg.get("subject", "")
 
-            # Second filtre : vÃ©rification des mots-clÃ©s dans l'objet
+            # Second filtre : vérification des mots-clés dans l'objet
             if not _subject_matches(subject):
                 continue
 
             body_content = msg.get("body", {}).get("content", "")
             email, prenom, nom = _extract_from_wordpress_body(body_content)
 
-            # Corps non parsable ou ligne "De :" absente : email ignorÃ©
+            # Corps non parsable ou ligne "De :" absente : email ignoré
             if not email:
                 continue
 
@@ -356,6 +356,6 @@ class OutlookFetchTool(BaseTool):
                 "received_at": msg.get("receivedDateTime", ""),
             })
 
-        # Mise Ã  jour du timestamp aprÃ¨s traitement pour le prochain cycle
+        # Mise à jour du timestamp après traitement pour le prochain cycle
         _save_last_check(now_iso)
         return results

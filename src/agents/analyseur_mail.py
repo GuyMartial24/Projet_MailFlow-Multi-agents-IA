@@ -24,6 +24,7 @@ Flux global :
 
 from crewai import Agent, Task
 
+from config import settings
 from config.llm import get_llm
 from tools.notify_tool import NotifyOperatorTool
 from tools.outlook_tool import OutlookFetchTool
@@ -52,7 +53,7 @@ def build_analyseur_mail_agent() -> Agent:
         role="Analyste Email",
         goal=(
             "Surveiller la boite Outlook de l'utilisateur, détecter les nouveaux "
-            "emails de formulaire@exemple.fr contenant une demande de Memento, "
+            f"emails de {settings.FILTER_SENDER} contenant une demande de Memento, "
             "et gérer intelligemment l'insertion dans le Google Sheet en distinguant "
             "les nouvelles demandes, les doublons en cours et les redondances de "
             "contacts déjà servis."

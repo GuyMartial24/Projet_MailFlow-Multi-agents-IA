@@ -1,5 +1,5 @@
-﻿[Unit]
-Description=MailFlow â€” Agents IA surveillance Outlook et envoi Memento
+[Unit]
+Description=MailFlow — Agents IA surveillance Outlook et envoi Memento
 Documentation=https://github.com/GuyMartial24/Projet_MailFlow-Multi-agents-IA
 After=network-online.target
 Wants=network-online.target
